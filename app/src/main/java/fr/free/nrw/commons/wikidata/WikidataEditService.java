@@ -5,10 +5,12 @@ import android.content.Context;
 
 import org.wikipedia.dataclient.mwapi.MwQueryResponse;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -21,6 +23,7 @@ import fr.free.nrw.commons.upload.mediaDetails.CaptionInterface;
 import fr.free.nrw.commons.utils.ViewUtil;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -222,8 +225,58 @@ public class WikidataEditService {
     }
 
     @SuppressLint("CheckResult")
-    private void wikidataAddLabels(String wikiDataEntityId, String fileEntityId, Map<String, String> caption) {
-        Observable.fromCallable(() -> captionInterface.addLabelstoWikidata(fileEntityId,mediaWikiApi.getEditToken(), caption.keySet().toString().substring(1,caption.keySet().toString().length()-1), caption.values().toString().substring(1,caption.values().toString().length()-1)))
+    private void wikidataAddLabels(String wikiDataEntityId, String fileEntityId, Map<String, String> caption) throws IOException {
+
+        Observable.fromCallable(new Callable<String>() {
+            @Override public String call() throws Exception {
+                return mediaWikiApi.getEditToken();
+            }
+        }).subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread()).subscribe(new Consumer<String>() {
+            @Override public void accept(String s) throws Exception {
+                HashMap<String, String> map =new HashMap<>();
+                map.put("action","wbsetlabel");
+                map.put("format","json");
+                map.put("id",fileEntityId);
+                map.put("language",caption.keySet().toString().substring(1,caption.keySet().toString().length()-1));
+                map.put("token",s);
+                map.put("value",caption.values().toString().substring(1,caption.values().toString().length()-1));
+                Observable.fromCallable(() -> captionInterface.addLabelstoWikidata(map))
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(revisionId ->{
+
+                                    revisionId.enqueue(new Callback<MwQueryResponse>() {
+                                        @Override
+                                        public void onResponse(Call<MwQueryResponse> call, Response<MwQueryResponse> response) {
+                                            MwQueryResponse result = response.body();
+                                            Timber.e((""+response.isSuccessful()));
+                                        }
+
+                                        @Override
+                                        public void onFailure(Call<MwQueryResponse> call, Throwable t) {
+
+                                            call.cancel();
+                                        }
+                                    });
+                                },
+
+                                throwable -> {
+                                    Timber.e(throwable, "Error occurred while setting Q24 tag");
+                                    ViewUtil.showLongToast(context, context.getString(R.string.wikidata_edit_failure));
+                                });
+            }
+                });
+
+
+        /*HashMap<String, String> map =new HashMap<>();
+        map.put("action","wbsetlabel");
+        map.put("format","json");
+        map.put("id",fileEntityId);
+        map.put("language",caption.keySet().toString().substring(1,caption.keySet().toString().length()-1));
+        map.put("token",mediaWikiApi.getEditToken().toString());
+        map.put("value",caption.values().toString().substring(1,caption.values().toString().length()-1));
+        Observable.fromCallable(() -> captionInterface.addLabelstoWikidata(map))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(revisionId ->{
@@ -246,6 +299,6 @@ public class WikidataEditService {
                         throwable -> {
                             Timber.e(throwable, "Error occurred while setting Q24 tag");
                             ViewUtil.showLongToast(context, context.getString(R.string.wikidata_edit_failure));
-                        });
+                        });*/
     }
 }
