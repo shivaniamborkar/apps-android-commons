@@ -1,5 +1,7 @@
 package fr.free.nrw.commons.upload.mediaDetails;
 
+import org.wikipedia.dataclient.mwapi.MwQueryResponse;
+
 import java.util.Observable;
 
 import fr.free.nrw.commons.mwapi.CustomApiResult;
@@ -12,7 +14,7 @@ public interface CaptionInterface {
 
     @FormUrlEncoded
     @POST("/w/api.php?action=wbsetlabel&format=json&bot=1")
-    Call<CustomApiResult> addLabelstoWikidata(@Field("id") String FileEntityId,
+    Call<MwQueryResponse> addLabelstoWikidata(@Field("id") String FileEntityId,
                                               @Field("token") String token,
                                               @Field("language") String language,
                                               @Field("value") String value);

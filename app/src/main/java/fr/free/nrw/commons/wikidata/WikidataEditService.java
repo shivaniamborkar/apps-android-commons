@@ -3,6 +3,8 @@ package fr.free.nrw.commons.wikidata;
 import android.annotation.SuppressLint;
 import android.content.Context;
 
+import org.wikipedia.dataclient.mwapi.MwQueryResponse;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +22,9 @@ import fr.free.nrw.commons.utils.ViewUtil;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 import timber.log.Timber;
 
 /**
@@ -216,11 +221,28 @@ public class WikidataEditService {
                 });
     }
 
+    @SuppressLint("CheckResult")
     private void wikidataAddLabels(String wikiDataEntityId, String fileEntityId, Map<String, String> caption) {
-        Observable.fromCallable(() -> captionInterface.addLabelstoWikidata(fileEntityId,"", caption.keySet().toString().substring(1,caption.keySet().toString().length()-1), caption.values().toString().substring(1,caption.values().toString().length()-1)))
+        Observable.fromCallable(() -> captionInterface.addLabelstoWikidata(fileEntityId,mediaWikiApi.getEditToken(), caption.keySet().toString().substring(1,caption.keySet().toString().length()-1), caption.values().toString().substring(1,caption.values().toString().length()-1)))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(revisionId -> Timber.d("Property Q24 set successfully for %s", revisionId),
+                .subscribe(revisionId ->{
+
+                        revisionId.enqueue(new Callback<MwQueryResponse>() {
+                            @Override
+                            public void onResponse(Call<MwQueryResponse> call, Response<MwQueryResponse> response) {
+                                MwQueryResponse result = response.body();
+                                Timber.e((""+response.isSuccessful()));
+                            }
+
+                            @Override
+                            public void onFailure(Call<MwQueryResponse> call, Throwable t) {
+
+                                call.cancel();
+                            }
+                        });
+    },
+
                         throwable -> {
                             Timber.e(throwable, "Error occurred while setting Q24 tag");
                             ViewUtil.showLongToast(context, context.getString(R.string.wikidata_edit_failure));
